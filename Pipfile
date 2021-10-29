@@ -1,0 +1,18 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+prefect = "*"
+tornado = "*"
+packaging = "*"
+httpx = "*"
+
+[dev-packages]
+
+[requires]
+python_version = "3.6"
+
+[pipenv]
+allow_prereleases = true
