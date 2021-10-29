@@ -44,3 +44,5 @@ flow = build(schedule=schedule)
 flow.run(parameters={
     "path": "./src/values.csv"
 })
+
+flow.register("funcional-flow")

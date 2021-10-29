@@ -2,105 +2,94 @@ import httpx
 import csv
 
 from prefect import task, Task, Flow
+from prefect.tasks.shell import ShellTask
+from prefect.executors import DaskExecutor
+
 
 
 class Extract(Task):
-    def __init__(self, source: str = "local", path: str = "./etl", **kwargs):
-        self.source = source
+    def __init__(self, path: str, **kwargs):
         self.path = path
+        self.data = None
         super().__init__(**kwargs)
 
-    def run(self):
-        data = None
-        if self.source == "remote":
-            with httpx.Client() as client:
-                data = client.get(self.path).json()
-        else:
-            with open(f"{self.path}/values.csv", "r") as _file:
-                text = _file.readline().strip()
-            data = [int(i) for i in text.split(",")]
+    def do_somethig(self):
+        with httpx.Client() as client:
+            response = client.get(self.path)
 
-        return data
+        self.logger.info(f"{response}")
+        self.data = response
+
+    def get_data(self):
+        return self.data
+
+    def run(self):
+        self.logger.info("saving reference data...")
+        self.do_somethig()
 
 
 class Transform(Task):
+
+    def __init__(self, data = None, **kwargs):
+        self.data = data
+        super().__init__(**kwargs)
+
+    def do_some_data_tranformation(self):
+        self.logger.info(f"Doing something with the received data {self.data}")
+
+    def run(self):
+        self.do_some_data_tranformation()
+
+
+
+class Load(Task):
 
     def __init__(self, data, **kwargs):
         self.data = data
         super().__init__(**kwargs)
 
-    def run(self):
-        return [i + 1 for i in self.data]
-
-
-class Load(Task):
-
-    def __init__(self, data, path: str = "./src", **kwargs):
-        self.data = data
-        self.path = path
-        super().__init__(**kwargs)
+    def do_some_with_tranformed_data():
+        print(f"Doing something with the transformed data {self.data}")
 
     def run(self):
-        with open(f"{self.path}/transformed_values.csv", "w") as file:
-            csv_writer = csv.writer(file)
-            csv_writer.writerow(self.data)
+        self.do_some_with_tranformed_data()
 
 
-class ETL(Task):
-
-    def __init__(self, source: str = "local", path: str = "./etl", **kwargs):
-        self.source = source
-        self.path = path
-        self.data = None
-        self.transformed_data = None
-
-        super().__init__(**kwargs)
-
-    def extract(self):
-        print(f"Extracting from {self.source} source")
-        if self.source == "remote":
-            with httpx.Client() as client:
-                self.data = client.get(self.path).json()
-        else:
-            with open(f"{self.path}/values.csv", "r") as _file:
-                text = _file.readline().strip()
-            self.data = [int(i) for i in text.split(",")]
+class ShowOutput(Task):
+    def run(self, std_out):
+        print(std_out)
 
 
-    def transform(self):
-        print(f"Transforming: {self.data}")
-        self.transformed_data = [i + 1 for i in self.data]
+# ls_task = ShellTask(command="ls", return_all=True)
+# show_output = ShowOutput()
 
+# flow = Flow("list_files")
+# show_output.set_upstream(ls_task, key="std_out", flow=flow)
 
-    def load(self):
-        with open(f"{self.path}/transformed_values.csv", "w") as file:
-            csv_writer = csv.writer(file)
-            csv_writer.writerow(self.transformed_data)
-
-    def run(self):
-        self.extract()
-        self.transform()
-        self.load()
-
+# flow.run()
 
 flow = Flow("My Imperative flow")
 
-transform = Transform(data=[10])
+extract = Extract(path="https://httpbin.org/status/200")
+extracted_data = extract.data
+
+transform = Transform()
+# transform.bind(data=extracted_data)
+
 flow.set_dependencies(
     task=transform,
-    upstream_tasks=[Extract()]
-
+    upstream_tasks=[extract]
 )
 
-load = Load(data=[10])
-flow.set_dependencies(
-    task=load,
-    upstream_tasks=[Transform(data=[10])]
-)
+# load = Load(data=[10])
+# flow.set_dependencies(
+#     task=load,
+#     upstream_tasks=[Transform(data=[10])]
+# )
 
-flow.visualize()
-
-# flow.run()
+# flow.visualize()
+if __name__=="__main__":
+    flow.run(executor=DaskExecutor())
 
 # with Flow("poc-prefect-etl") as flow:
 #     etl = ETL()
